@@ -16,6 +16,7 @@
 
 int main(int argc, char *argv[])
 {
+    printf("Beginning of main.c\n"); 
     if (argc != 4)
     {
         fprintf(stderr, "Usage: %s <input_file_0> <input_file_1> <output_file>\n", argv[0]);
@@ -45,12 +46,15 @@ int main(int argc, char *argv[])
     cl_program program;        // program
     cl_kernel kernel;          // kernel
 
+    printf("Right before loading input a\n"); 
     err = LoadMatrix(input_file_a, &host_a);
     CHECK_ERR(err, "LoadMatrix");
 
+    printf("Right before loading input b\n"); 
     err = LoadMatrix(input_file_b, &host_b);
     CHECK_ERR(err, "LoadMatrix");
 
+    printf("Right before loading input c\n"); 
     err = LoadMatrix(input_file_c, &host_c);
     CHECK_ERR(err, "LoadMatrix");
 
@@ -84,11 +88,24 @@ int main(int argc, char *argv[])
 
     // Create the compute kernel in the program we wish to run
     kernel = clCreateKernel(program, "vectorAdd", &err);
-    CHECK_ERR(err, "clCreateKernel");
+    CHECK_ERR(err, "clCreateKerne");
 
     //@@ Allocate GPU memory here
 
+    unsigned int len_vec = host_a.shape[0] * host_a.shape[1];
+    //device_a = clCreateBuffer(context, CL_MEM_WRITE_ONLY, host_a.shape[0] * host_a.shape[1]*sizeof(float), NULL, &err);
+    //device_b = clCreateBuffer(context, CL_MEM_WRITE_ONLY, host_b.shape[0] * host_b.shape[1]*sizeof(float), NULL, &err);
+    //device_c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, host_c.shape[0] * host_c.shape[1]*sizeof(float), NULL, &err);
+
+    device_a = clCreateBuffer(context, CL_MEM_WRITE_ONLY, len_vec*sizeof(float), NULL, &err);
+    device_b = clCreateBuffer(context, CL_MEM_WRITE_ONLY, len_vec*sizeof(float), NULL, &err);
+    device_c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, len_vec*sizeof(float), NULL, &err);
     //@@ Copy memory to the GPU here
+    
+
+    clEnqueueWriteBuffer(queue, device_a, CL_TRUE, 0, len_vec*sizeof(float), host_a.data, 0, NULL, NULL);
+    clEnqueueWriteBuffer(queue, device_b, CL_TRUE, 0, len_vec*sizeof(float), host_b.data, 0, NULL, NULL);
+    //clEnqueueWriteBuffer(queue, device_c, CL_TRUE, 0, len_vec*sizeof(float), host_c.data, 0, NULL, NULL);
 
     // Set the arguments to our compute kernel
     unsigned int size_a = host_a.shape[0] * host_a.shape[1];
@@ -103,26 +120,41 @@ int main(int argc, char *argv[])
 
     //@@ Initialize the global size and local size here
 
+    global_item_size = size_a;
+    local_item_size = 1;
+
     //@@ Launch the GPU Kernel here
+    err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
+    clFinish(queue);
 
     //@@ Copy the GPU memory back to the CPU here
-    
+    //clEnqueueReadBuffer(queue, device_a, CL_TRUE, 0, size_a*sizeof(float), host_a.data, 0, NULL, NULL);
+    //clEnqueueReadBuffer(queue, device_b, CL_TRUE, 0, size_a*sizeof(float), host_b.data, 0, NULL, NULL);
+    clEnqueueReadBuffer(queue, device_c, CL_TRUE, 0, size_a*sizeof(float), host_c.data, 0, NULL, NULL);
+
     // Prints the results
     for (unsigned int i = 0; i < host_c.shape[0] * host_c.shape[1]; i++)
     {
         printf("C[%u]: %f == %f\n", i, host_c.data[i], host_a.data[i] + host_b.data[i]);
     }
     // Save the result
-    SaveMatrix("./output.raw", host_c.data);
+    SaveMatrix("./output.raw", &host_c.data);
 
     //@@ Free the GPU memory here
+    clReleaseMemObject(device_a);
+    clReleaseMemObject(device_b);
+    clReleaseMemObject(device_c);
+    clReleaseKernel(kernel);
+    clReleaseProgram(program);
+    clReleaseCommandQueue(queue);
+    clReleaseContext(context);
 
     // Release host memory
     free(host_a.data);
     free(host_b.data);
     free(host_c.data);
     free(kernel_source);
-    free(result);
+    //free(result);
 
     return 0;
 }
