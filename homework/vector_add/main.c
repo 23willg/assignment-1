@@ -16,22 +16,22 @@
 
 int main(int argc, char *argv[])
 {
-    printf("Beginning of main.c\n"); 
-    if (argc != 4)
+    if (argc != 5)
     {
-        fprintf(stderr, "Usage: %s <input_file_0> <input_file_1> <output_file>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <input_file_0> <input_file_1> <answer_file> <output_file>\n", argv[0]);
         return -1;
     }
 
     const char *input_file_a = argv[1];
     const char *input_file_b = argv[2];
     const char *input_file_c = argv[3];
+    const char *input_file_d = argv[4];
 
     // Load external OpenCL kernel code
     char *kernel_source = OclLoadKernel(KERNEL_PATH); // Load kernel source
 
     // Host input and output vectors and sizes
-    Matrix host_a, host_b, host_c;
+    Matrix host_a, host_b, host_c, answer;
 
     // Device input and output buffers
     cl_mem device_a, device_b, device_c;
@@ -39,7 +39,6 @@ int main(int argc, char *argv[])
     size_t global_item_size, local_item_size;
     cl_int err;
 
-    cl_platform_id cpPlatform; // OpenCL platform
     cl_device_id device_id;    // device ID
     cl_context context;        // context
     cl_command_queue queue;    // command queue
@@ -55,10 +54,14 @@ int main(int argc, char *argv[])
     CHECK_ERR(err, "LoadMatrix");
 
     printf("Right before loading input c\n"); 
-    err = LoadMatrix(input_file_c, &host_c);
+    //err = LoadMatrix(input_file_c, &host_c);
+    err = LoadMatrix(input_file_c, &answer);
     CHECK_ERR(err, "LoadMatrix");
 
-    printf("Vector Shape: [%u, %u]\n", host_a.shape[0], host_a.shape[1]);
+    // Allocate the memory for the target.
+    host_c.shape[0] = host_a.shape[0];
+    host_c.shape[1] = host_a.shape[1];
+    host_c.data = (float *)malloc(sizeof(float) * host_c.shape[0] * host_c.shape[1]);
 
     // Find platforms and devices
     OclPlatformProp *platforms = NULL;
@@ -138,7 +141,8 @@ int main(int argc, char *argv[])
         printf("C[%u]: %f == %f\n", i, host_c.data[i], host_a.data[i] + host_b.data[i]);
     }
     // Save the result
-    SaveMatrix("./output.raw", &host_c.data);
+    //SaveMatrix("./output.raw", &host_c.data);
+    SaveMatrix(input_file_d, &host_c);
 
     //@@ Free the GPU memory here
     clReleaseMemObject(device_a);
@@ -153,6 +157,7 @@ int main(int argc, char *argv[])
     free(host_a.data);
     free(host_b.data);
     free(host_c.data);
+    free(answer.data);
     free(kernel_source);
     //free(result);
 
